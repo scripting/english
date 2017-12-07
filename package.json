@@ -2,7 +2,7 @@
 	"name": "english", 
 	"description": "The server behind the English editor.",
 	"author": "Dave Winer <dave@smallpicture.com>",
-	"version": "0.5.0",
+	"version": "0.5.1",
 	"dependencies" : {
 		"davehttp": "*",
 		"daveutils": "*",

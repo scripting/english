@@ -1,11 +1,10 @@
-var myProductName = "english", myVersion = "0.5.0";   
+var myProductName = "english", myVersion = "0.5.1";   
 
 const request = require ("request");
 const fs = require ("fs");
 const davehttp = require ("davehttp");
 const utils = require ("daveutils");
 const qs = require ("querystring");
-
 
 var config = {
 	port: 1402,
