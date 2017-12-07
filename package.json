@@ -1,0 +1,16 @@
+{ 
+	"name": "english", 
+	"description": "The server behind the English editor.",
+	"author": "Dave Winer <dave@smallpicture.com>",
+	"version": "0.4.22",
+	"dependencies" : {
+		"davehttp": "*",
+		"daveutils": "*",
+		"querystring": "*",
+		"request": "*"
+		}, 
+	"license": "MIT",
+	"engines": { 
+		"node": "*"
+		}
+	}
