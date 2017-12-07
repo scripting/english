@@ -1,4 +1,4 @@
-var myProductName = "english", myVersion = "0.4.22";   
+var myProductName = "english", myVersion = "0.5.0";   
 
 const request = require ("request");
 const fs = require ("fs");
@@ -115,16 +115,12 @@ function saveFile (accessToken, username, repo, path, msg, name, email, filetext
 				"Content-Type": options.type
 				}
 			};
-		
-		console.log (utils.jsonStringify (theRequest));
-		
 		request (theRequest, function (err, response, body) { 
 			if (err) {
 				console.log ("uploadFile: err.message == " + err.message);
 				callback (err);
 				}
 			else {
-				console.log ("uploadFile: response.statusCode == " + response.statusCode);
 				if (callback !== undefined) {
 					callback (undefined, response);
 					}
@@ -147,13 +143,11 @@ function handleHttpRequest (theRequest) {
 			theRequest.httpReturn (200, "text/plain", new Date ());
 			return;
 		case "/oauthcallback":
-			console.log (utils.jsonStringify (theRequest.params));
 			var apiUrl = "https://github.com/login/oauth/access_token";
 			apiUrl += "?client_id=" + config.clientId;
 			apiUrl += "&client_secret=" + config.clientSecret;
 			apiUrl += "&code=" + theRequest.params.code;
 			
-			console.log ("apiUrl == " + apiUrl);
 			
 			var githubRequest = {
 				method: "POST",
@@ -165,7 +159,6 @@ function handleHttpRequest (theRequest) {
 					theRequest.httpReturn (500, "text/plain", err.message);
 					}
 				else {
-					console.log (body);
 					var postbody = qs.parse (body);
 					var httpResponse = theRequest.sysResponse;
 					var urlRedirect = "http://scripting.com/english/?access_token=" + postbody.access_token;
