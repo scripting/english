@@ -215,6 +215,7 @@ function readConfig (callback) {
 		});
 	}
 function everyMinute () {
+	console.log (myProductName + " v" + myVersion + ": " + new Date ().toLocaleTimeString () + ".\n");
 	}
 function everySecond () {
 	}
