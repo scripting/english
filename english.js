@@ -48,44 +48,6 @@ function getFile (options, callback) {
 			}
 		});
 	}
-function uploadFileTest (options, callback) {
-	var bodyStruct = { 
-		message: options.message,
-		committer: {
-			name: options.committer.name,
-			email: options.committer.email
-			},
-		content: new Buffer (options.data).toString ('base64')
-		};
-	getFile (options, function (err, data, jstruct) {
-		if (jstruct !== undefined) {
-			bodyStruct.sha = jstruct.sha;
-			}
-		var username = options.username;
-		var url = "https://api.github.com/repos/" + username + "/" + options.repo + "/contents/" + options.repoPath;
-		var theRequest = {
-			method: "PUT",
-			url: url,
-			body: JSON.stringify (bodyStruct),
-			headers: {
-				"User-Agent": options.userAgent,
-				"Authorization": "token " + options.accessToken,
-				"Content-Type": options.type
-				}
-			};
-		
-		console.log (utils.jsonStringify (theRequest));
-		
-		request (theRequest, function (err, response, body) { 
-			if (err) {
-				console.log ("uploadFile: err.message == " + err.message);
-				}
-			if (callback !== undefined) {
-				callback (err, response, body);
-				}
-			});
-		});
-	}
 function getUserInfo (accessToken, callback) {
 	var myRequest = {
 		method: "GET",
@@ -210,30 +172,6 @@ function handleHttpRequest (theRequest) {
 					httpResponse.writeHead (302, {"location": urlRedirect});
 					httpResponse.end ("Redirect to this URL: " + urlRedirect);
 					theRequest.httpReturn (200, "text/plain", "We got the callback bubba.");
-					}
-				});
-			return;
-		case "/uploadfile":
-			var options = {
-				username: "scripting",
-				repo: "test1",
-				repoPath: "motto.txt",
-				data: "Four score and seven years ago, this nation set forth yadda yadda yadda.",
-				type: "text/plain",
-				committer: {
-					name: "Dave Winer",
-					email: "dave.winer@gmail.com"
-					},
-				message: "Set the motto",
-				userAgent: "Dave's Test GitHub Uploader"
-				};
-			options.accessToken = accessToken;
-			uploadFileTest (options, function (err, response, body) {
-				if (err) {
-					theRequest.httpReturn (200, "text/plain", err.message);
-					}
-				else {
-					theRequest.httpReturn (200, "text/plain", body);
 					}
 				});
 			return;
