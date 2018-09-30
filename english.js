@@ -1,51 +1,40 @@
-var myProductName = "english", myVersion = "0.5.1";   
+var myProductName = "english", myVersion = "0.5.21";   
 
 const request = require ("request");
 const fs = require ("fs");
 const davehttp = require ("davehttp");
 const utils = require ("daveutils");
 const qs = require ("querystring");
+const yaml = require ("js-yaml");
+const gitpub = require ("./src/githubpub.js");
 
 var config = {
 	port: 1402,
 	flLogToConsole: true,
 	flAllowAccessFromAnywhere: true,
-	userAgent: myProductName + " v" + myVersion
+	flPostEnabled: true,
+	userAgent: myProductName + " v" + myVersion,
+	urlEnglishApp: "http://scripting.com/english/testing/" //9/16/18 by DW
 	};
 
 const fnameConfig = "config.json";
 
-function getFile (options, callback) {
-	var url = "https://api.github.com/repos/" + options.username + "/" + options.repo + "/contents/" + options.repoPath;
-	var theRequest = {
-		method: "GET",
-		url: url,
-		headers: {
-			"User-Agent": options.userAgent
+function getFileExtension (url) {
+	return (utils.stringLastField (url, ".").toLowerCase ());
+	}
+function urlToMime (url) {
+	var ext = getFileExtension (url);
+	return (utils.httpExt2MIME (ext));
+	}
+function buildParamList (paramtable) { 
+	var s = "";
+	for (var x in paramtable) {
+		if (s.length > 0) {
+			s += "&";
 			}
-		};
-	request (theRequest, function (err, response, body) { 
-		var jstruct = undefined;
-		if (err) {
-			if (callback !== undefined) {
-				callback (err);
-				}
-			}
-		else {
-			try {
-				var jstruct = JSON.parse (body);
-				if (callback !== undefined) {
-					var buffer = new Buffer (jstruct.content, "base64"); 
-					callback (undefined, buffer.toString (), jstruct);
-					}
-				}
-			catch (err) {
-				if (callback !== undefined) {
-					callback (err);
-					}
-				}
-			}
-		});
+		s += x + "=" + encodeURIComponent (paramtable [x]);
+		}
+	return (s);
 	}
 function getUserInfo (accessToken, callback) {
 	var myRequest = {
@@ -77,6 +66,32 @@ function getUserInfo (accessToken, callback) {
 		});
 	}
 function saveFile (accessToken, username, repo, path, msg, name, email, filetext, callback) {
+	function getFile (callback) {
+		var url = "https://api.github.com/repos/" + username + "/" + repo + "/contents/" + path;
+		var theRequest = {
+			method: "GET",
+			url: url,
+			headers: {
+				"User-Agent": config.userAgent
+				}
+			};
+		request (theRequest, function (err, response, body) { 
+			var jstruct = undefined;
+			if (err) {
+				callback (err);
+				}
+			else {
+				try {
+					var jstruct = JSON.parse (body);
+					var buffer = new Buffer (jstruct.content, "base64"); 
+					callback (undefined, buffer.toString (), jstruct);
+					}
+				catch (err) {
+					callback (err);
+					}
+				}
+			});
+		}
 	var options = {
 		accessToken: accessToken,
 		username: username,
@@ -99,7 +114,7 @@ function saveFile (accessToken, username, repo, path, msg, name, email, filetext
 			},
 		content: new Buffer (options.data).toString ('base64')
 		};
-	getFile (options, function (err, data, jstruct) {
+	getFile (function (err, data, jstruct) {
 		if (jstruct !== undefined) {
 			bodyStruct.sha = jstruct.sha;
 			}
@@ -121,13 +136,15 @@ function saveFile (accessToken, username, repo, path, msg, name, email, filetext
 				}
 			else {
 				if (callback !== undefined) {
-					callback (undefined, response);
+					var jstruct = {
+						domain: gitpub.getRepositoryDomain (username, repo)
+						};
+					callback (undefined, jstruct);
 					}
 				}
 			});
 		});
 	}
-
 function handleHttpRequest (theRequest) {
 	var accessToken = theRequest.params.accessToken;
 	function returnData (jstruct) {
@@ -160,7 +177,7 @@ function handleHttpRequest (theRequest) {
 				else {
 					var postbody = qs.parse (body);
 					var httpResponse = theRequest.sysResponse;
-					var urlRedirect = "http://scripting.com/english/?access_token=" + postbody.access_token;
+					var urlRedirect = config.urlEnglishApp + "?access_token=" + postbody.access_token;
 					httpResponse.writeHead (302, {"location": urlRedirect});
 					httpResponse.end ("Redirect to this URL: " + urlRedirect);
 					theRequest.httpReturn (200, "text/plain", "We got the callback bubba.");
@@ -189,10 +206,87 @@ function handleHttpRequest (theRequest) {
 					}
 				});
 			return;
+		case "/get":
+			var username = theRequest.params.username;
+			var repository = theRequest.params.repo;
+			var path = theRequest.params.path;
+			gitpub.getFromGitHub (username, repository, path, function (err, jstruct) {
+				if (err) {
+					returnError (err);
+					}
+				else {
+					var content = jstruct.content;
+					if (jstruct.encoding == "base64") {
+						content = new Buffer (content, "base64"); 
+						}
+					theRequest.httpReturn (200, urlToMime (path), content);
+					}
+				});
+			
+			return;
+		case "/savepost":
+			function yamlIze (jsontext) {
+				var jstruct = JSON.parse (jsontext);
+				const delimiter = "---\n";
+				var text = jstruct.text;
+				delete jstruct.text;
+				var s = delimiter + yaml.safeDump (jstruct) + delimiter + text;
+				return (s);
+				}
+			var text = yamlIze (theRequest.params.text);
+			var repo = theRequest.params.repo;
+			var path = theRequest.params.path;
+			var msg = theRequest.params.msg;
+			var name = theRequest.params.name;
+			var email = theRequest.params.email;
+			var username = theRequest.params.username;
+			saveFile (accessToken, username, repo, path, msg, name, email, text, function (err, result) {
+				if (err) {
+					returnError (err);
+					}
+				else {
+					returnData (result);
+					}
+				});
+			return;
+		case "/getpost":
+			function deYamlIze (data) {
+				const delimiter = "---\n";
+				var filetext = data.toString ();
+				if (utils.beginsWith (filetext, delimiter)) {
+					var frontmatter = utils.stringNthField (filetext, delimiter, 2);
+					var remainingtext = utils.stringDelete (filetext, 1, frontmatter.length + (2 * delimiter.length));
+					if (frontmatter.length > 0) {
+						var jstruct = yaml.safeLoad (frontmatter);
+						jstruct.text = remainingtext;
+						return (jstruct);
+						}
+					return ({text: filetext});
+					}
+				return ({text: filetext});
+				}
+			var username = theRequest.params.username;
+			var repository = theRequest.params.repo;
+			var path = theRequest.params.path;
+			gitpub.getFromGitHub (username, repository, path, function (err, jstruct) {
+				if (err) {
+					returnError (err);
+					}
+				else {
+					var content = jstruct.content;
+					if (jstruct.encoding == "base64") {
+						content = new Buffer (content, "base64"); 
+						}
+					
+					var returnStruct = deYamlIze (content);
+					returnStruct.domain = gitpub.getRepositoryDomain (username, repository);
+					returnData (returnStruct);
+					}
+				});
+			return;
 		}
-	theRequest.httpReturn (404, "text/plain", "Not found.");
+	gitpub.handleRequest (theRequest, theRequest.httpReturn);
 	}
-
 function readConfig (callback) {
 	utils.sureFilePath (fnameConfig, function () {
 		fs.readFile (fnameConfig, function (err, data) {
@@ -214,7 +308,9 @@ function readConfig (callback) {
 		});
 	}
 function everyMinute () {
-	console.log (myProductName + " v" + myVersion + ": " + new Date ().toLocaleTimeString () + ".\n");
+	var cachesize = gitpub.getCacheSize ();
+	var cachemsg = cachesize + ((cachesize != 1) ? " files" : " file") + " in cache";
+	console.log ("\n" + myProductName + " v" + myVersion + ": " + new Date ().toLocaleTimeString () + ", " + cachemsg + ".\n");
 	}
 function everySecond () {
 	}
@@ -222,10 +318,10 @@ function everySecond () {
 readConfig (function () {
 	console.log ("\n" + myProductName + " v" + myVersion + "\n");
 	setInterval (everySecond, 1000); 
-	utils.runAtTopOfMinute (function () {
-		setInterval (everyMinute, 60000); 
-		everyMinute ();
-		});
+	
+	utils.runEveryMinute (everyMinute);
+	
+	gitpub.init (config, false);
 	davehttp.start (config, function (theRequest) {
 		handleHttpRequest (theRequest);
 		});
