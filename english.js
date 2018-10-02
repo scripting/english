@@ -1,4 +1,4 @@
-var myProductName = "english", myVersion = "0.5.21";   
+var myProductName = "english", myVersion = "0.6.0";   
 
 const request = require ("request");
 const fs = require ("fs");
@@ -66,37 +66,11 @@ function getUserInfo (accessToken, callback) {
 		});
 	}
 function saveFile (accessToken, username, repo, path, msg, name, email, filetext, callback) {
-	function getFile (callback) {
-		var url = "https://api.github.com/repos/" + username + "/" + repo + "/contents/" + path;
-		var theRequest = {
-			method: "GET",
-			url: url,
-			headers: {
-				"User-Agent": config.userAgent
-				}
-			};
-		request (theRequest, function (err, response, body) { 
-			var jstruct = undefined;
-			if (err) {
-				callback (err);
-				}
-			else {
-				try {
-					var jstruct = JSON.parse (body);
-					var buffer = new Buffer (jstruct.content, "base64"); 
-					callback (undefined, buffer.toString (), jstruct);
-					}
-				catch (err) {
-					callback (err);
-					}
-				}
-			});
-		}
 	var options = {
-		accessToken: accessToken,
 		username: username,
-		repo: repo,
-		repoPath: path,
+		repository: repo,
+		path: path,
+		accessToken: accessToken,
 		data: filetext,
 		type: "text/plain",
 		committer: {
@@ -106,44 +80,7 @@ function saveFile (accessToken, username, repo, path, msg, name, email, filetext
 		message: msg,
 		userAgent: config.userAgent
 		};
-	var bodyStruct = { 
-		message: options.message,
-		committer: {
-			name: options.committer.name,
-			email: options.committer.email
-			},
-		content: new Buffer (options.data).toString ('base64')
-		};
-	getFile (function (err, data, jstruct) {
-		if (jstruct !== undefined) {
-			bodyStruct.sha = jstruct.sha;
-			}
-		var url = "https://api.github.com/repos/" + options.username + "/" + options.repo + "/contents/" + options.repoPath;
-		var theRequest = {
-			method: "PUT",
-			url: url,
-			body: JSON.stringify (bodyStruct),
-			headers: {
-				"User-Agent": options.userAgent,
-				"Authorization": "token " + options.accessToken,
-				"Content-Type": options.type
-				}
-			};
-		request (theRequest, function (err, response, body) { 
-			if (err) {
-				console.log ("uploadFile: err.message == " + err.message);
-				callback (err);
-				}
-			else {
-				if (callback !== undefined) {
-					var jstruct = {
-						domain: gitpub.getRepositoryDomain (username, repo)
-						};
-					callback (undefined, jstruct);
-					}
-				}
-			});
-		});
+	gitpub.saveToGitHub (options, callback);
 	}
 function handleHttpRequest (theRequest) {
 	var accessToken = theRequest.params.accessToken;
@@ -189,15 +126,36 @@ function handleHttpRequest (theRequest) {
 				returnData (result);
 				});
 			return;
-		case "/save":
-			var text = theRequest.params.text;
-			var repo = theRequest.params.repo;
-			var path = theRequest.params.path;
-			var msg = theRequest.params.msg;
-			var name = theRequest.params.name;
-			var email = theRequest.params.email;
+		
+		case "/get":
 			var username = theRequest.params.username;
-			saveFile (accessToken, username, repo, path, msg, name, email, text, function (err, result) {
+			var repository = theRequest.params.repo;
+			var path = theRequest.params.path;
+			gitpub.getContentFromGitHub (username, repository, path, function (err, content) {
+				if (err) {
+					returnError (err);
+					}
+				else {
+					theRequest.httpReturn (200, urlToMime (path), content);
+					}
+				});
+			return;
+		case "/save":
+			var options = {
+				username: theRequest.params.username,
+				repository: theRequest.params.repo,
+				path: theRequest.params.path,
+				accessToken: accessToken,
+				data: theRequest.params.text,
+				type: "text/plain",
+				committer: {
+					name: theRequest.params.name,
+					email: theRequest.params.email
+					},
+				message: theRequest.params.msg,
+				userAgent: config.userAgent
+				};
+			gitpub.saveToGitHub (options, function (err, result) {
 				if (err) {
 					returnError (err);
 					}
@@ -206,24 +164,7 @@ function handleHttpRequest (theRequest) {
 					}
 				});
 			return;
-		case "/get":
-			var username = theRequest.params.username;
-			var repository = theRequest.params.repo;
-			var path = theRequest.params.path;
-			gitpub.getFromGitHub (username, repository, path, function (err, jstruct) {
-				if (err) {
-					returnError (err);
-					}
-				else {
-					var content = jstruct.content;
-					if (jstruct.encoding == "base64") {
-						content = new Buffer (content, "base64"); 
-						}
-					theRequest.httpReturn (200, urlToMime (path), content);
-					}
-				});
-			
-			return;
+		
 		case "/savepost":
 			function yamlIze (jsontext) {
 				var jstruct = JSON.parse (jsontext);
@@ -233,14 +174,21 @@ function handleHttpRequest (theRequest) {
 				var s = delimiter + yaml.safeDump (jstruct) + delimiter + text;
 				return (s);
 				}
-			var text = yamlIze (theRequest.params.text);
-			var repo = theRequest.params.repo;
-			var path = theRequest.params.path;
-			var msg = theRequest.params.msg;
-			var name = theRequest.params.name;
-			var email = theRequest.params.email;
-			var username = theRequest.params.username;
-			saveFile (accessToken, username, repo, path, msg, name, email, text, function (err, result) {
+			var options = {
+				username: theRequest.params.username,
+				repository: theRequest.params.repo,
+				path: theRequest.params.path,
+				accessToken: accessToken,
+				data: yamlIze (theRequest.params.text), //this is the diff
+				type: "text/plain",
+				committer: {
+					name: theRequest.params.name,
+					email: theRequest.params.email
+					},
+				message: theRequest.params.msg,
+				userAgent: config.userAgent
+				};
+			gitpub.saveToGitHub (options, function (err, result) {
 				if (err) {
 					returnError (err);
 					}
@@ -268,16 +216,11 @@ function handleHttpRequest (theRequest) {
 			var username = theRequest.params.username;
 			var repository = theRequest.params.repo;
 			var path = theRequest.params.path;
-			gitpub.getFromGitHub (username, repository, path, function (err, jstruct) {
+			gitpub.getContentFromGitHub (username, repository, path, function (err, content) {
 				if (err) {
 					returnError (err);
 					}
 				else {
-					var content = jstruct.content;
-					if (jstruct.encoding == "base64") {
-						content = new Buffer (content, "base64"); 
-						}
-					
 					var returnStruct = deYamlIze (content);
 					returnStruct.domain = gitpub.getRepositoryDomain (username, repository);
 					returnData (returnStruct);
