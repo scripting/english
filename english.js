@@ -1,4 +1,4 @@
-var myProductName = "english", myVersion = "0.6.6";   
+var myProductName = "english", myVersion = "0.6.7";   
 
 const fs = require ("fs");
 const davehttp = require ("davehttp");
@@ -11,10 +11,10 @@ var config = {
 	flAllowAccessFromAnywhere: true,
 	flPostEnabled: true,
 	userAgent: myProductName + " v" + myVersion,
-	urlEnglishApp: "http://scripting.com/english/testing/" //9/16/18 by DW
+	urlEditorApp: "http://scripting.com/english/testing/" //9/16/18 by DW
 	};
-
 const fnameConfig = "config.json";
+
 function readConfig (callback) {
 	utils.sureFilePath (fnameConfig, function () {
 		fs.readFile (fnameConfig, function (err, data) {
